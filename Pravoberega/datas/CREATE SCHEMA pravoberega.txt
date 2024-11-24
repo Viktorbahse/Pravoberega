@@ -1,0 +1,70 @@
+CREATE SCHEMA pravoberega;
+CREATE TABLE Organizer (Organizer_id INT PRIMARY KEY NOT NULL,
+    Name text not null,
+    Function text not null
+);
+CREATE TABLE Club (Club_id INT PRIMARY KEY NOT NULL,
+    Name text not null
+);
+CREATE TABLE Tournament (Tournament_id INT PRIMARY KEY NOT NULL,
+    Name text not null,
+    Format text not null,
+    Season text not null
+);
+CREATE TABLE Tour (Tour_id INT PRIMARY KEY NOT NULL,
+    Number INT NOT NULL CHECK (Number > 0)
+);
+CREATE TABLE Stadium (Stadium_id INT PRIMARY KEY NOT NULL,
+    Tour_id INT NOT NULL,
+    Name text not null,
+    Address text not null,
+    FOREIGN KEY (Tour_id) REFERENCES Tour(Tour_id)
+);
+CREATE TABLE Team (Team_Id INT PRIMARY KEY NOT NULL,
+    Club_id INT NOT NULL,
+    Name text not null,
+    Founding_date date not null,
+    FOREIGN KEY (Club_id) REFERENCES Club(Club_id)
+);
+CREATE TABLE Player (Player_id INT PRIMARY KEY NOT NULL,
+	Team_id INT NOT NULL,
+	Name text not null, 
+	Date_of_birth date not null, 
+	Position text CHECK (Position in('GK', 'B', 'LB', 'RB', 'CB', 'M', 'DM', 'CM', 'LM', 'RM',  'CAM', 'F','LF', 'RF', 'ST', NULL )),
+	Capitan Boolean,
+    	FOREIGN KEY (Team_id) REFERENCES Team(Team_id)
+);
+CREATE TABLE Reward (Reward_id INT PRIMARY KEY NOT NULL,
+    Player_id INT NOT NULL,
+    Reward_type text not null,
+    FOREIGN KEY (Player_id) REFERENCES Player(Player_id)
+);
+CREATE TABLE Coach (Coach_id INT PRIMARY KEY NOT NULL,
+    Club_id INT NOT NULL,
+    Name text not null,
+    Date_of_birth date not null, 
+    FOREIGN KEY (Club_id) REFERENCES Club(Club_id)
+);
+CREATE TABLE Histori_of_Coach (Coach_id INT PRIMARY KEY NOT NULL,
+    Club_id INT NOT NULL,
+    Name text not null,
+    Date_of_birth date not null, 
+    ChangeDate date not null, 
+    FOREIGN KEY (Club_id) REFERENCES Club(Club_id)
+);
+CREATE TABLE Sponsor (Sponsor_id INT PRIMARY KEY NOT NULL,
+    Name text not null      
+);
+
+CREATE TABLE Club_X_Sponsor (Club_id INT PRIMARY KEY NOT NULL,
+	Sponsor_id INT PRIMARY KEY NOT NULL,
+    	ValidFrom date not null,
+    	ValidTo date not null, 
+    	IsCurrent boolean,
+    	FOREIGN KEY (Club_id) REFERENCES Club(Club_id),
+    	FOREIGN KEY (Sponsor_id) REFERENCES Sponsor(Sponsor_id)
+);
+
+
+
+
