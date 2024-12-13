@@ -1,1 +1,0 @@
-INSERT INTO pravoberega.Tournament VALUES(001, 'Высшая лига. Дивизион Поповой', '6x6', 'Лето-осень 2024');
