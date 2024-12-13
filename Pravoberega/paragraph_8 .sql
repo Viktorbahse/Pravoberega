@@ -159,7 +159,10 @@ create view goal_statistics as
 	    	left join temp8 as t8 on t0.team_id=t8.team_id
 	) select t.name, t9.g, t9.f, t9.p, t9.a from pravoberega.team as t inner join temp9 as t9 on t.team_id=t9.team_id order by t.name;
 	
-/*Данное представление представляет собой статистику команд за турнир: число  "чисто" забитых мячей(g), число мячей забитых со штрафного(f), число мячей забитых с пенальти(p) и число автоголов (a).*/	
+/*Данное представление представляет собой статистику команд за турнир: число  "чисто"
+забитых мячей(g), число мячей забитых со штрафного(f), число мячей забитых с пенальти(p) и число автоголов (a).*/	
+
+------------------------------------------------------------------------------------------------
 
 create view tournament_table as 
 /*Для каждого матча считаем голы забитые первой командой*/
@@ -276,7 +279,217 @@ temp17 as (
 	select t16.team_id, t16.scored_goals, t16.conceded_goals, t16.V, t16.D, t16.L, (3*t16.V+t16.D) as points from temp16 as t16
 )select team.name, t17.scored_goals, t17.conceded_goals, t17.V, t17.D, t17.L, t17.points from pravoberega.team as team 
 inner join temp17 as t17 on team.team_id=t17.team_id order by t17.points DESC
-/*Данное представление является статистикой команд за турнир. Для каждой команды посчитано число забитый мячей, пропущенных мячей, количество победных, ничейных и проигранных матчей, а также число заработанных очков.*/
+/*Данное представление является статистикой команд за турнир. Для каждой команды посчитано число забитый мячей, пропущенных мячей,
+количество победных, ничейных и проигранных матчей, а также число заработанных очков.*/
 
+--------------------------------------------------------------------------------------------------------------
 
- 
+CREATE VIEW views.player_ststs as
+
+/*Временная таблица - число выигранных игроком матчей*/
+with won_games as(
+	/*Голы, забитые первой командой в матче*/
+with first_team_result(match_id, score) as(
+	WITH goals(match_id, team_id_1,team_id_2, type) AS(
+		select m.match_id, team_id_1,team_id_2, type from pravoberega.Match as m 
+		inner join pravoberega.Events as e on m.match_id=e.match_id where e.type in ('г1', 'г2', 'а1', 'а2', 'п1', 'п2', 'ш1', 'ш2')
+	) SELECT match_id, COUNT(*) AS score FROM goals WHERE goals.type IN ('г1','а1','п1','ш1') GROUP BY match_id
+), 
+	/*Голы, забитые второй командой в матче*/
+second_team_result(match_id, score) as( 
+	WITH goals(match_id, team_id_1,team_id_2, type) AS(
+		select m.match_id, team_id_1,team_id_2, type from pravoberega.Match as m 
+		inner join pravoberega.Events as e on m.match_id=e.match_id where e.type in ('г1', 'г2', 'а1', 'а2', 'п1', 'п2', 'ш1', 'ш2')
+	) SELECT match_id, COUNT(*) AS score FROM goals WHERE goals.type IN ('г2','а2','п2','ш2') GROUP BY match_id
+), 
+	/*JOIN предыдущих результатов с таблицей match*/
+match_result as(
+	select m.match_id, m.tour_id, m.team_id_1, m.team_id_2, 
+	CASE 
+	    WHEN s1.score IS NULL 
+	    	THEN 0
+	    ELSE s1.score
+   	END 
+   	AS first_team_score,
+	   	CASE 
+		    WHEN s2.score IS NULL 
+		    	THEN 0
+		    ELSE s2.score
+	   	END 
+   	AS second_team_score from pravoberega.match as m 
+   	left join first_team_result as s1 on m.match_id=s1.match_id 
+  	left join second_team_result as s2 on m.match_id=s2.match_id
+)
+SELECT * FROM
+(SELECT p.player_id, count(*) over (partition by p.player_id) FROM
+pravoberega.player p
+left JOIN
+pravoberega.match_application_x_player map
+on p.player_id = map.player_id
+left JOIN
+pravoberega.match_application ma 
+on map.match_application_id = ma.match_application_id
+left JOIN
+match_result mr 
+on ma.match_id = mr.match_id
+where
+(ma.team_id = mr.team_id_1 and mr.first_team_score > mr.second_team_score) or
+(ma.team_id = mr.team_id_2 and mr.first_team_score < mr.second_team_score)) as tmp
+group by player_id, count)
+
+SELECT p.name,
+CASE 
+	WHEN game_count.И IS NULL 
+	   	THEN 0
+	ELSE game_count.И
+END,
+CASE 
+	WHEN player_goals.Г IS NULL 
+	   	THEN 0
+	ELSE player_goals.Г
+END,
+CASE 
+	WHEN player_pen.Пен IS NULL 
+	   	THEN 0
+	ELSE player_pen.Пен
+END,
+CASE 
+	WHEN player_f.Ш IS NULL 
+	   	THEN 0
+	ELSE player_f.Ш
+END,
+CASE 
+	WHEN player_pass.П IS NULL 
+	   	THEN 0
+	ELSE player_pass.П
+END,
+CASE 
+	WHEN player_goals_and_pass.Г_П IS NULL 
+	   	THEN 0
+	ELSE player_goals_and_pass.Г_П
+END,
+(count*100/И) as проц_поб,
+CASE 
+	WHEN player_autogoals.А IS NULL 
+	   	THEN 0
+	ELSE player_autogoals.А
+END,
+CASE 
+	WHEN player_yellow_cards.Ж IS NULL 
+	   	THEN 0
+	ELSE player_yellow_cards.Ж
+END,
+CASE 
+	WHEN player_red_cards.К IS NULL 
+	   	THEN 0
+	ELSE player_red_cards.К
+END
+FROM pravoberega.player p
+
+left join
+
+	/*Число сыгранных игроком игр*/
+(SELECT * FROM
+(SELECT player_id, count(player_id) over (PARTITION by player_id) as И
+FROM pravoberega.match_application_x_player) as tmp
+group by player_id, И) as game_count
+on p.player_id = game_count.player_id
+
+left join
+
+	/*Число забитых игроком голов*/
+(SELECT * FROM
+(SELECT player_id, count(*) as Г
+FROM(pravoberega.player p inner join
+pravoberega.events e on p.player_id = e.player_id_1)
+where e.type in ('г1', 'г2', 'ш1', 'ш2', 'п1', 'п2')
+group by player_id) as tmp2) as player_goals
+on p.player_id = player_goals.player_id
+
+left join
+
+	/*Число реализованных игроком пенальти*/
+(SELECT * FROM
+(SELECT player_id, count(*) as Пен
+FROM(pravoberega.player p inner join
+pravoberega.events e on p.player_id = e.player_id_1)
+where e.type in ('п1', 'п2')
+group by player_id) as tmp) as player_pen
+on p.player_id = player_pen.player_id
+
+left join
+
+	/*Число забитых игроком голов со штрафного*/
+(SELECT * FROM
+(SELECT player_id, count(*) as Ш
+FROM(pravoberega.player p inner join
+pravoberega.events e on p.player_id = e.player_id_1)
+where e.type in ('ш1', 'ш2')
+group by player_id) as tmp) as player_f
+on p.player_id = player_f.player_id
+
+left JOIN
+
+	/*Число отданных игроком голевых передач*/
+(SELECT * FROM
+(SELECT player_id, count(*) as П
+FROM(pravoberega.player p inner join
+pravoberega.events e on p.player_id = e.player_id_2)
+where e.type in ('г1', 'г2')
+group by player_id) as tmp) as player_pass
+on p.player_id = player_pass.player_id
+
+left JOIN
+
+	/*Число очков игрока по системе гол+пас*/
+(SELECT * FROM
+(SELECT player_id, count(*) as Г_П
+FROM(pravoberega.player p inner join
+pravoberega.events e on (p.player_id = e.player_id_1 or p.player_id = e.player_id_2))
+where e.type in ('г1', 'г2', 'ш1', 'ш2', 'п1', 'п2')
+group by player_id) as tmp) player_goals_and_pass
+on p.player_id = player_goals_and_pass.player_id
+
+left JOIN
+
+	/*Число выигранных игроком матчей*/
+won_games wg 
+on p.player_id = wg.player_id
+
+left join
+
+	/*Число автоголов игрока*/
+(SELECT * FROM
+(SELECT player_id, count(*) as А
+FROM(pravoberega.player p inner join
+pravoberega.events e on p.player_id = e.player_id_1)
+where e.type in ('а1', 'а2')
+group by player_id) as tmp) as player_autogoals
+on p.player_id = player_autogoals.player_id
+
+left JOIN
+
+	/*Число полученных игроком желтых карточек*/
+(SELECT * FROM
+(SELECT player_id, count(*) as Ж
+FROM(pravoberega.player p inner join
+pravoberega.events e on p.player_id = e.player_id_1)
+where e.type in ('ж')
+group by player_id) as tmp) as player_yellow_cards
+on p.player_id = player_yellow_cards.player_id
+
+left JOIN
+
+	/*Число полученных игроком красных карточек*/
+(SELECT * FROM
+(SELECT player_id, count(*) as К
+FROM(pravoberega.player p inner join
+pravoberega.events e on p.player_id = e.player_id_1)
+where e.type in ('к')
+group by player_id) as tmp) as player_red_cards
+on p.player_id = player_red_cards.player_id
+
+order by Г desc;
+
+/*Данное представление является статистикой игроков. Для каждого игрока посчитано число сыгранных игр, забитый мячей,
+полученных карточек, процент побед и т.п.*/
